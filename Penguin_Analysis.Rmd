@@ -1,0 +1,345 @@
+---
+title: "Penguin_Analysis"
+output: html_document
+date: "2024-10-16"
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(palmerpenguins)
+library(janitor)
+library(here)
+
+```
+
+See where the script thinks it is
+
+```{r}
+
+here::here()
+
+```
+
+Don't use setwd as this could be a privacy issue, could break constantly, will throw a tantrum on Windows VS Macs...
+Use "here" instead.
+
+Show the first rows of our table
+
+```{r}
+
+head(penguins_raw)
+
+```
+
+```{r}
+
+colnames(penguins_raw)
+
+```
+
+This SHOULD replace / and spaces with dots...
+but my PC is clever.
+But we don't want "studyName" to not be capitalised.
+If we want to change column names, NEVER change the excel spreadsheet, as this is non-reproducible.
+
+Save the penguins data as a csv file, within the "data" file, in "here" (the current directory).
+
+```{r}
+
+write.csv(penguins_raw, here("data","penguins_raw.csv"))
+
+```
+
+Clean up and get rid of some columns
+
+```{r}
+
+#colnames(penguins_raw)
+
+#penguins_raw <- select(penguins_raw, -Comments)
+
+#colnames(penguins_raw)
+
+```
+
+This is bad practice as the PC has a hissyfit that "comments" doesn't exist anymore if we run it again.
+We've wrecked this file now, we need to reset it.
+
+Reset the data using our safe copy that we saved just before this disaster:
+
+```{r}
+
+#penguins_raw <- read.csv(here("data","penguins_raw.csv"))
+
+#colnames(penguins_raw)
+# show_col_types = FALSE stops it printing after loading
+
+```
+
+A better way to get rid of comments!
+
+```{r}
+
+#penguins_clean <- select(penguins_raw, -Comments)
+#penguins_clean <- select(penguins_clean, -starts_with("Delta"))
+
+#colnames(penguins_clean)
+
+```
+
+This is also bad code, as we're overriding penguins_clean.
+
+Use piping from tidyverse to remove our hated columns.
+
+```{r}
+
+#penguins_clean <- penguins_raw %>%
+#  select(-Comments) %>%
+#  select(-starts_with("Delta"))
+
+#colnames(penguins_clean)
+
+```
+
+We can now do an extra step using "janitor", This'll clean up the column titles and remove the weird capitals and dots and stuff.
+
+```{r}
+
+#penguins_clean <- penguins_raw %>%
+#  select(-Comments) %>%
+#  select(-starts_with("Delta")) %>%
+#  clean_names()
+
+#colnames(penguins_clean)
+
+```
+
+Bear in mind the order - doing "clean_names" first will make this break, as it can't get rid of Comments (with a capital C)
+
+Save penguins_clean as a new csv file
+
+```{r}
+write.csv(penguins_clean, here("data","penguins_clean.csv"))
+
+```
+
+We can make our own functions!
+We COULD copy and paste code, but this is a pain.
+("Where is it!?")
+
+```{r}
+
+cleaning_penguin_columns <- function(raw_data){
+  raw_data <- penguins_raw %>%
+   select(-Comments) %>%
+   select(-starts_with("Delta")) %>%
+   clean_names()
+}
+
+penguins_clean <- cleaning_penguin_columns(penguins_raw)
+
+colnames(penguins_clean)
+
+penguins_clean
+
+```
+
+But, we want to move our function into its own file.
+See Cleaning.R
+
+Now we want to load our functions!
+
+```{r}
+
+source(here("functions","Cleaning.R"))
+
+shorten_species(penguins_clean)
+
+
+cleaning_penguin_columns <- function(raw_data){
+  print("Cleaned names, removed comments, removed empty rows, removed delta")
+  raw_data %>%
+    clean_names() %>%
+    shorten_species() %>%
+    remove_empty(c("rows", "cols")) %>%
+    select(-Comments) %>%
+    select(-starts_with("Delta"))
+}
+
+
+
+
+```
+
+You now have a renv file.
+
+```{r}
+
+install.packages("renv")
+renv::init() #Don't run if you already have the renv file
+
+#This will load and store the packages in the renv file. Now:
+install.packages("table1")
+
+#This will take and store the all running packages in the renv file.
+renv::snapshot()
+#This'll make a renv.lock file that can be shared, a total lock on all our packages.
+
+```
+
+You can also run renv::diagnostics() to view the packages you have in your renv file.
+Renv will keep track of your packages. Doing "snapshot" above will save all packages to a renv.lock file which you can share.
+
+
+Load ggplot2:
+
+```{r}
+library(ggplot2)
+```
+
+
+We want to make a box plot as an exploratory figure:
+This shows the reader the raw data - this'll show the shape of the data.
+Scatter plot is a figure for 2 continuous variables.
+Scatter plot with a line through it IS NOT exploratory - you're already analysing it.
+
+Using "here()" is good, as it works for all PCs.
+
+```{r}
+penguins_clean <- read_csv(here("data", "penguins_clean.csv"))
+```
+
+
+Make a flipper box plot
+
+```{r}
+#This tells you what data to use
+flipper_boxplot <- ggplot(
+  data = penguins_clean,
+  aes(x = species,
+      y = flipper_length_mm)
+) +
+  geom_boxplot()
+
+#This will show you the plot.
+flipper_boxplot
+
+#There'll be a warning - that it has removed NA values.
+
+
+```
+
+
+We want to fix the error from above.
+We want to remove all the NAs from the flipper_length column.
+
+```{r}
+
+#This will only take these 2 columns and put them in a new variable.
+penguins_flippers <- select(penguins_clean, c("species","flipper_length_mm")) %>%
+  drop_na()
+
+colnames(penguins_flippers)
+
+#Now remove NAs... BUT WAIT! we're overwriting!
+#penguins_flippers <- 
+#Instead use piping to make this reproducible.
+
+species_colours <- c("Adelie Penguin (Pygoscelis adeliae)" = "darkorange",
+                     "Chinstrap penguin (Pygoscelis antarctica)" = "purple",
+                     "Gentoo penguin (Pygoscelis papua)" = "cyan4")
+
+#Now we can make the plot again
+  flipper_boxplot <- ggplot(
+  data = penguins_flippers,
+  aes(x = species,
+      y = flipper_length_mm)
+) +
+  geom_boxplot(aes(color = species),
+               width = 0.3,
+               show.legend=FALSE) +
+  geom_jitter(aes(color = species),
+              alpha = 0.3,
+              show.legend = FALSE,
+              position = position_jitter(
+                width = 0.2,
+                seed = 0)) +
+  scale_color_manual(values = species_colours) +
+  labs(x = "species",
+       y = "Flipper Length (mm)") +
+    theme_bw()
+              
+
+  
+#This will show you the plot.
+flipper_boxplot
+ 
+#This graph is a pretty ugly graphic. So we can add COLOUR! by modding the code.
+#We also want to remove the auto-generated legend
+#And we want to show all the datapoints with jitter, to space them out on the x axis.
+#But still, this isn't reproducible - jitter does it differently each time.
+#We can make it not "random" by specifing a seed. We can also colour the points, and make the spread along x smaller.
+#We can change the width of the boxes.
+#We can also make the datapoints more transparent to make the boxes more visible. This is "alpha".
+#We can also add in labels.
+
+
+#These colours are not very good. They are not colourblind-friendly. Never use red and green together. See code for "penguin_colours".
+
+
+#We may want to convert this code to make a plot into a function.
+#To do this, you'd make another R script and put the code in there. See supplementary information.
+
+#So we have a lovely figure now. How do we re-size things for our poster and shit?
+#Make a subfolder called figures, and install the "ragg" and "svglite" packages.
+#You'd need to update the renv, or you can install them through renv to skip this.
+
+
+
+
+
+```
+
+
+
+```{r}
+
+Just need to install git.
+"git push" will let you move it onto the hub.
+
+
+```
+
+
+
+
+
+
+
+## R Markdown
+
+This is an R Markdown document.
+Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents.
+For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.
+You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
